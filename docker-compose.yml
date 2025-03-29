@@ -1,0 +1,56 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: audio_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    ports:
+      - "5433:5432" # map host port 5433 to container port 5432 to avoid conflicts
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  app:
+    build: . # build the image from the Dockerfile in the current directory
+    container_name: audio_app
+    env_file:
+      - .env # load environment variables from .env file
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app/app # mount the app code for development (reflects changes without rebuild)
+      - ./uploads:/app/uploads # mount the uploads directory
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      db: # wait for the db service to be healthy
+        condition: service_healthy
+
+  migrations:
+    build: . # use the same build context as the app
+    container_name: audio_migrations
+    env_file:
+      - .env
+    command: >
+      sh -c "
+        echo 'Waiting for DB...' &&
+        # Simple wait loop (replace with wait-for-it.sh or similar if needed)
+        while ! nc -z db 5432; do sleep 1; done;
+        echo 'DB ready, running migrations...' &&
+        alembic upgrade head
+      "
+    depends_on:
+      db:
+        condition: service_healthy # ensure db is ready before running
+    restart: on-failure
+
+volumes:
+  postgres_data:
