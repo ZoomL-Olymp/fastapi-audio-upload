@@ -41,11 +41,10 @@ services:
       - .env
     command: >
       sh -c "
-        echo 'Waiting for DB...' &&
-        # Simple wait loop (replace with wait-for-it.sh or similar if needed)
-        while ! nc -z db 5432; do sleep 1; done;
-        echo 'DB ready, running migrations...' &&
-        alembic upgrade head
+      echo 'Waiting for DB...' &&
+      while ! nc -z db 5432; do sleep 1; done;
+      echo 'DB ready, running migrations...' &&
+      alembic upgrade head
       "
     depends_on:
       db:
